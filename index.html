@@ -560,6 +560,19 @@ mark.hl { background: rgba(99,102,241,.35); color: inherit; border-radius: 3px; 
   transition: width 1s cubic-bezier(.22,.9,.3,1);
 }
 .cat-card .cat-actions { display: flex; gap: .4rem; margin-top: .9rem; }
+/* 分类卡片可点击查看笔记：手型光标 + 查看提示 + 箭头动效 */
+.cat-card[data-cat-open] { cursor: pointer; }
+.cat-card[data-cat-open] .open-ico {
+  margin-left: auto; font-size: .82rem; color: var(--text-faint);
+  opacity: .55; transition: all .25s ease;
+}
+.cat-card[data-cat-open]:hover .open-ico { opacity: 1; color: #818cf8; transform: translateX(4px); }
+.cat-view-hint {
+  margin-top: .55rem; font-size: .7rem; font-weight: 600; color: #818cf8;
+  display: flex; align-items: center; gap: .35rem;
+  opacity: .85; transition: opacity .25s ease;
+}
+.cat-card[data-cat-open]:hover .cat-view-hint { opacity: 1; }
 .cat-form { padding: 1.15rem; border-style: dashed; border-color: var(--border); }
 .swatches { display: flex; flex-wrap: wrap; gap: .45rem; margin: .7rem 0; }
 .swatch {
@@ -1366,10 +1379,11 @@ function renderCats() {
       </div>`;
     } else {
       html += `
-      <div class="cat-card glass" style="--c:${c.color};">
-        <div class="cat-name"><span class="cdot"></span>${esc(c.name)}</div>
+      <div class="cat-card glass" style="--c:${c.color};" data-cat-open="${esc(c.name)}" title="点击查看「${esc(c.name)}」的全部笔记">
+        <div class="cat-name"><span class="cdot"></span>${esc(c.name)}<i class="fa-solid fa-arrow-right-to-bracket open-ico"></i></div>
         <div class="cat-count">${cnt} 条记录 · ${pct}%</div>
         <div class="bar-track"><div class="bar-fill" style="--c:${c.color}" data-pct="${pct}"></div></div>
+        ${cnt > 0 ? `<div class="cat-view-hint"><i class="fa-solid fa-eye"></i>点击卡片查看全部 ${cnt} 条笔记</div>` : ''}
         <div class="cat-actions">
           <button class="btn ghost" style="flex:1;font-size:.74rem;padding:.45rem;" data-cat-edit="${esc(c.name)}"><i class="fa-solid fa-pen"></i>编辑</button>
           <button class="btn danger" style="flex:1;font-size:.74rem;padding:.45rem;" data-cat-del="${esc(c.name)}"><i class="fa-solid fa-trash"></i>删除</button>
@@ -1396,6 +1410,19 @@ function swatchRow(sel) {
   return PALETTE.map(c =>
     `<button class="swatch ${c === sel ? 'sel' : ''}" style="--c:${c};background:${c};" data-color="${c}" title="${c}"></button>`
   ).join('');
+}
+/* 点击分类卡片：跳转到笔记库，并筛选出该分类的全部笔记 */
+function openCategoryInNotes(name) {
+  state.category = name;
+  state.range = 'all';
+  state.search = '';
+  state.calDay = null;
+  const si = $('searchInput'); if (si) si.value = '';
+  const sc = $('searchClear'); if (sc) sc.classList.remove('show');
+  renderCatFilter();
+  renderNotes();
+  switchView('notes');
+  toast(`已筛选「${name}」分类的全部笔记`, 'info');
 }
 
 /* ============================================================
@@ -2122,8 +2149,14 @@ function bindEvents() {
   $('exportJsonBtn2').addEventListener('click', exportAllJSON);
   $('exportTxtBtn2').addEventListener('click', exportAllTXT);
 
-  /* 分类页：新建 / 调色板 / 编辑 / 删除 */
+  /* 分类页：新建 / 调色板 / 编辑 / 删除 / 查看笔记 */
   $('catsWrap').addEventListener('click', e => {
+    /* 点击分类卡片主体 → 跳转笔记库并筛选该分类全部笔记（忽略按钮/输入框/色板点击） */
+    const openCard = e.target.closest('[data-cat-open]');
+    if (openCard && !e.target.closest('button') && !e.target.closest('input') && !e.target.closest('.swatch')) {
+      openCategoryInNotes(openCard.dataset.catOpen);
+      return;
+    }
     /* 创建分类按钮（#catsWrap 内部元素会被重新渲染，用事件委托绑定） */
     const newBtn = e.target.closest('#newCatBtn');
     if (newBtn) {
